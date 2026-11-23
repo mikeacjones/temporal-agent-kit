@@ -154,7 +154,7 @@ Clone at a release tag. You need [just](https://just.systems/),
 [`temporal` CLI](https://docs.temporal.io/cli) (see [Requirements](https://github.com/temporal-community/temporal-agent-kit/blob/main/docs/guides/examples.md#requirements)).
 
 ```bash
-git clone --branch 0.12.1 https://github.com/temporal-community/temporal-agent-kit.git
+git clone --branch 0.13.0 https://github.com/temporal-community/temporal-agent-kit.git
 cd temporal-agent-kit
 cp .env.example .env.local   # then set GEMINI_API_KEY (and/or OPENAI_API_KEY)
 ```
@@ -174,7 +174,7 @@ one UI.
 Git will note that you're in "detached HEAD" — that's expected, it just means you're sitting on
 the tag rather than on a branch. Later, move to a newer release with
 `git fetch --tags && git checkout <version>`, or see what changed between two of them with
-`git diff 0.12.0 0.12.1`.
+`git diff 0.12.1 0.13.0`.
 
 ### Build with it — install from PyPI
 
@@ -185,7 +185,7 @@ Agent Kit is published to
 [`uv`](https://docs.astral.sh/uv/)-managed project:
 
 ```bash
-uv add 'temporal-agent-kit[ui]==0.12.1'
+uv add 'temporal-agent-kit[ui]==0.13.0'
 ```
 
 Or declare it in `pyproject.toml` — an ordinary dependency, no `[tool.uv.sources]` needed:
@@ -207,7 +207,7 @@ dependencies = [
     #   s3              S3-backed offload for large payloads
     #
     # What each one pulls in, and when you actually need it, is in the Extras table below.
-    "temporal-agent-kit[ui]==0.12.1",
+    "temporal-agent-kit[ui]==0.13.0",
 ]
 ```
 
@@ -232,9 +232,11 @@ uv run temporal-agent-kit serve ./agents.toml
 uv run python -m my_app.worker
 ```
 
-Open <http://localhost:8000> and create a session. `serve` accepts several registries and merges
-them (`serve one/agents.toml two/agents.toml`), so a single UI can list agents from more than one
-project.
+Open <http://localhost:8000> and create a session. `serve` registers the agents of every file it
+is given (`serve one/agents.toml two/agents.toml`), so a single UI can list agents from more than
+one project. A running server takes more without a restart:
+`uv run temporal-agent-kit agents add other/agents.toml`, or "Add agents" in the console.
+`agents list`, `agents retire <key>` and `agents delete <key>` manage what it holds.
 
 That registry is what lists the launchable agents:
 
@@ -270,14 +272,50 @@ so they land on the same namespace. With nothing configured they use `localhost:
 automatically**; point at a project-local file (or a Temporal Cloud profile) explicitly:
 
 ```bash
-TEMPORAL_CONFIG_FILE=./temporal.toml TEMPORAL_PROFILE=cloud \
-    uv run temporal-agent-kit serve ./agents.toml
+uv run temporal-agent-kit serve --temporal-config-file temporal.toml --temporal-profile cloud \
+    ./agents.toml
 ```
 
-`uv run temporal-agent-kit --help` documents the full precedence order.
+`--temporal-config-file` and `--temporal-profile` override `TEMPORAL_CONFIG_FILE` and
+`TEMPORAL_PROFILE`; `uv run temporal-agent-kit --help` documents the full precedence order.
 
 Need the API and UI mounted inside your own FastAPI service instead? See
 [Self-hosting the web app](https://github.com/temporal-community/temporal-agent-kit/blob/main/docs/api/hosting.md#self-hosting-the-web-app).
+
+#### Add agents to a running server
+
+The server keeps its registry between restarts, and takes new agents while it runs. To manage it
+from any terminal, install the command as a uv tool, which puts `temporal-agent-kit` on your
+`PATH`:
+
+```bash
+uv tool install 'temporal-agent-kit[ui]'
+uv tool update-shell   # once, if ~/.local/bin is not on your PATH yet; then open a new terminal
+```
+
+Then, from your agent project, with the server running:
+
+```bash
+# The agent's schema document. Run inside the project: it imports your agent class.
+uv run temporal-agent-kit schema my_app.workflow:MyAgentWorkflow -o MyAgent.schema.json
+
+# Register every agent in the agents.toml, all of them or none.
+temporal-agent-kit agents add agents.toml --server http://localhost:8000
+```
+
+The agents appear in the console at once; start their workers on the task queues they name.
+Registering a key again replaces that agent, so rerun both commands after changing its init data,
+label or description. `--server` defaults to `http://localhost:8000`.
+
+```bash
+temporal-agent-kit agents list                 # every registered agent, active or retired
+temporal-agent-kit agents retire my-agent      # starts no new sessions; its sessions stay listed
+temporal-agent-kit agents delete my-agent      # leaves the registry; its sessions leave the list
+```
+
+"Add agents" in the console's Agent Bay does the same as `agents add`, from a form or an imported
+`agents.toml`, and its New session dialog retires, restores and deletes agents. `uv tool upgrade
+temporal-agent-kit` updates the command.
 
 #### Extras
 
@@ -296,7 +334,7 @@ opt-in:
 | `typesafe` | make typed [TypeSafe](https://docs.typesafe.ai) System One calls (`ai_sdks.typesafe`), or use **`ai_sdks.jev.jev_evaluator`**, the Jev-backed auto mode evaluator; pulls in [`temporalio-typesafe`](https://pypi.org/project/temporalio-typesafe/). Register its `TypeSafePlugin` on the worker, before `AgentKitPlugin`. |
 | `s3` | offload large payloads to S3. The default local-filesystem driver needs nothing extra. |
 
-Combine them in one spec, e.g. `uv add 'temporal-agent-kit[ui,code-mode,genai]==0.12.1'`.
+Combine them in one spec, e.g. `uv add 'temporal-agent-kit[ui,code-mode,genai]==0.13.0'`.
 
 
 ## Versioning and stability
@@ -309,7 +347,7 @@ sdist were built from that commit, browser UI included.
 
 Two artifacts come out of a release, and they pin differently:
 
-- **The library** — pin an exact version from PyPI (`temporal-agent-kit==0.12.1`).
+- **The library** — pin an exact version from PyPI (`temporal-agent-kit==0.13.0`).
 - **The examples** — check out the matching git tag. They are *not* shipped in the package, so a
   PyPI install gives you the library, the packaged UI, and the CLI, but no `examples/` tree.
 
